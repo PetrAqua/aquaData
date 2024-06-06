@@ -7,7 +7,7 @@ Tools for water quality and hydrogeologic analysis
 
 ## DMR_Parser.r
 
-![](images/DMR Parser Diagram.png)
+![](images/DMR%20Parser%20Diagram.png)
 
 This script retrieves discharge monitoring data from EPA's Enforcement and Compliance History Online ([ECHO](https://echo.epa.gov/ "echo.epa.gov")) database using the `ECHO_data()` function and **parameters.xlsx** as a key for EPA's STOrage and RETrieval (STORET) respository designations for water quality parameters.
 
