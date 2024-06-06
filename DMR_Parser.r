@@ -7,6 +7,10 @@
 # The user only needs to provide the NPDES permit number and date range for the
 # data they would like rendered into tables.
 
+# v2: (1) Removed year text from effluent table row names
+#     (2) Added support for multiple outfall tables
+#     (3) Added additional Flow parameter_code to parameters.xlsx
+
 ################################################################################ Function to assign query values #####
 querySetup = function() {
   message("Please provide the following information:")
@@ -31,6 +35,8 @@ library(reshape2)
 library(pivottabler); library(basictabler) # For making pivot tables
 library(glue) # For building strings from variables
 library(openxlsx) # Used to export tables to Excel
+  
+options(scipen=999)
 
 # Function to take data from ECHO or a local csv downloaded from ICIS
 ECHO_data = function(NPDES_ID, start_date, end_date) {
@@ -73,10 +79,25 @@ data = DMR_data %>%
   mutate(parameter_name = glue("{parameter_alias} ({limit_unit_desc})"),
          limit_table_name = "Limit")
 
+# Add code that automatically exports the ECHO data for every query to a folder
+# and edit ECHO_data function to ask if the user would like it to search the
+# folder for matching data if ECHO blocks queries or an error occurs?
+
 ################################################################################ Data Subsets for QA/QC Checks #####
 
 effluent = data %>%
   filter(perm_feature_type_code == "EXO")
+# Split effluent data.frame into list of grouped_dfs
+outfalls = split(effluent, effluent$perm_feature_nmbr)
+# Create empty list to use later for recalling outfall tables
+outfalls_list = list()
+# Creates separate grouped_dfs named by outfall
+for (i in 1:length(outfalls)) {
+  assign(paste0(
+    unique(outfalls[[i]]$perm_feature_type_code), "_",
+    unique(outfalls[[i]]$perm_feature_nmbr)),
+    outfalls[[i]])
+}
 
 wells = data %>%
   filter(perm_feature_type_code == "WEL") %>%
@@ -89,9 +110,18 @@ wells = data %>%
                                     unique(perm_feature_nmbr)))
 
 effluent_limits = effluent %>%
-  select(parameter_code, parameter_desc, statistical_base_short_desc,
+  select(perm_feature_nmbr, parameter_code, parameter_desc, statistical_base_short_desc,
          limit_value_nmbr, limit_unit_desc) %>%
   distinct()
+# Split effluent_limits data.frame into list of grouped_dfs
+outfall_limits = split(effluent_limits, effluent_limits$perm_feature_nmbr)
+# Creates separate grouped_dfs named by outfall
+for (i in 1:length(outfall_limits)) {
+  assign(paste0(
+    unique(outfalls[[i]]$perm_feature_type_code), "_",
+    unique(outfall_limits[[i]]$perm_feature_nmbr), "_limits"),
+    outfall_limits[[i]])
+}
 
 gw_limits = wells %>%
   select(parameter_code, parameter_desc, statistical_base_short_desc,
@@ -100,45 +130,53 @@ gw_limits = wells %>%
   
 ################################################################################ Table for Effluent Values and Limits #####
 
-# Pivot table of effluent values
-effluent_pivot = PivotTable$new()
-effluent_pivot$addData(effluent)
-effluent_pivot$addRowDataGroups("monitoring_period_end_date",
-                                dataFormat = list(format = "%B %Y"),
-                                addTotal = FALSE)
-effluent_pivot$addColumnDataGroups("parameter_name",
-                                   addTotal = FALSE)
-effluent_pivot$addColumnDataGroups("statistical_base_short_desc",
-                                   addTotal = FALSE)
-effluent_pivot$defineCalculation(calculationName = "meanValue",
-                                 summariseExpression = "mean(dmr_value_nmbr, na.rm = T)")
-effluent_pivot$evaluatePivot()
-effluent_basic = effluent_pivot$asBasicTable()
-# Pivot table of effluent limits
-effluent_limit_pivot = PivotTable$new()
-effluent_limit_pivot$addData(effluent)
-effluent_limit_pivot$addRowDataGroups("limit_table_name",
-                                      addTotal = FALSE)
-effluent_limit_pivot$addColumnDataGroups("parameter_name",
-                                         addTotal = FALSE)
-effluent_limit_pivot$addColumnDataGroups("statistical_base_short_desc",
-                                         addTotal = FALSE)
-effluent_limit_pivot$defineCalculation(calculationName = "meanLimit",
-                                       summariseExpression = "unique(limit_value_nmbr)")
-effluent_limit_pivot$evaluatePivot()
-effluent_limit_basic = effluent_limit_pivot$asBasicTable()
-# Combining effluent tables
-effluent_basic$cells$insertRow(effluent_basic$rowCount + 1)
-effluent_basic$cells$setRow(effluent_basic$rowCount,
-                            startAtColumnNumber = 1,
-                            cellTypes = c("rowHeader"),
-                            effluent_limit_basic$cells$getRowValues(rowNumber = 3,
-                                                                    columnNumbers = 1:effluent_limit_basic$columnCount,
-                                                                    formattedValue = FALSE,
-                                                                    asList = TRUE,
-                                                                    rebase = TRUE))
-effluent_basic$renderTable()
-
+# Pivot table(s) of effluent values
+for (i in seq_along(outfalls)){
+  effluent_pivot = PivotTable$new()
+  effluent_pivot$addData(outfalls[[i]])
+  effluent_pivot$addRowDataGroups("monitoring_period_end_date",
+                                  dataFormat = list(format = "%B"),
+                                  addTotal = FALSE)
+  effluent_pivot$addColumnDataGroups("parameter_name",
+                                     addTotal = FALSE)
+  effluent_pivot$addColumnDataGroups("statistical_base_short_desc",
+                                     addTotal = FALSE)
+  effluent_pivot$defineCalculation(calculationName = paste0("meanValue_", i),
+                                   summariseExpression = "mean(dmr_value_nmbr, na.rm = T)")
+  effluent_pivot$evaluatePivot()
+  effluent_basic = effluent_pivot$asBasicTable()
+  # Pivot table of effluent limits
+  effluent_limit_pivot = PivotTable$new()
+  effluent_limit_pivot$addData(outfalls[[i]])
+  effluent_limit_pivot$addRowDataGroups("limit_table_name",
+                                        addTotal = FALSE)
+  effluent_limit_pivot$addColumnDataGroups("parameter_name",
+                                           addTotal = FALSE)
+  effluent_limit_pivot$addColumnDataGroups("statistical_base_short_desc",
+                                           addTotal = FALSE)
+  effluent_limit_pivot$defineCalculation(calculationName = paste0("meanLimit_", i),
+                                         summariseExpression = "unique(limit_value_nmbr)")
+  effluent_limit_pivot$evaluatePivot()
+  effluent_limit_basic = effluent_limit_pivot$asBasicTable()
+  # Combining effluent tables
+  effluent_basic$cells$insertRow(effluent_basic$rowCount + 1)
+  effluent_basic$cells$setRow(effluent_basic$rowCount,
+                              startAtColumnNumber = 1,
+                              cellTypes = c("rowHeader"),
+                              effluent_limit_basic$cells$getRowValues(rowNumber = 3,
+                                                                      columnNumbers = 1:effluent_limit_basic$columnCount,
+                                                                      formattedValue = FALSE,
+                                                                      asList = TRUE,
+                                                                      rebase = TRUE))
+  effluent_basic$renderTable()
+  message("Effluent Table for Outfall ", i, ":\n")
+  print(effluent_basic)
+  outfalls_list[[paste0("Outfall_", i)]] <- effluent_basic
+}
+# Create separate basicTable objects for each outfall
+for (i in seq_along(outfalls_list)) {
+  assign(paste0(names(outfalls_list)[i], "_table"), outfalls_list[[i]])
+}
 ################################################################################ Table for Groundwater Values and Limits #####
 
 # Pivot table of GW values
@@ -182,16 +220,18 @@ DMR_export = function() {
   input = as.character(readline(prompt = "Would you like to export the tables to Excel? Yes/No: "))
   if (input == "Yes") {
     wb = createWorkbook()
-    addWorksheet(wb, "Effluent Table")
+    for (i in seq_along(outfalls_list)) {addWorksheet(wb, paste0(names(outfalls_list)[i], " Table"))}
     addWorksheet(wb, "Groundwater Table")
-    addWorksheet(wb, "Raw Data")
-    effluent_basic$writeToExcelWorksheet(wb = wb, wsName = "Effluent Table",
-                                         topRowNumber = 1, leftMostColumnNumber = 1,
-                                         applyStyles = TRUE, outputValuesAs="formattedValueAsText")
     gw_basic$writeToExcelWorksheet(wb = wb, wsName = "Groundwater Table",
                                    topRowNumber = 1, leftMostColumnNumber = 1,
                                    applyStyles = TRUE, outputValuesAs="formattedValueAsText")
+    addWorksheet(wb, "Raw Data")
     writeDataTable(wb, "Raw Data", DMR_data)
+    for (i in seq_along(outfalls_list)) {
+      outfalls_list[[i]]$writeToExcelWorksheet(wb = wb, wsName = paste0(names(outfalls_list)[i], " Table"),
+                                               topRowNumber = 1, leftMostColumnNumber = 1,
+                                               applyStyles = TRUE, outputValuesAs="formattedValueAsText")
+    }
     saveWorkbook(wb, file = paste0(glue("{getwd()}/{DMR_data$npdes_id[[1]]}_Data.xlsx")), overwrite = TRUE)
     message(paste0(glue("Tables exported to {getwd()}/{DMR_data$npdes_id[[1]]}_Data.xlsx")))
     shell.exec(paste0("file:", getwd()))
