@@ -7,9 +7,10 @@
 # The user only needs to provide the NPDES permit number and date range for the
 # data they would like rendered into tables.
 
-# v2: (1) Removed year text from effluent table row names
-#     (2) Added support for multiple outfall tables
-#     (3) Added additional Flow parameter_code to parameters.xlsx
+# v2:   (1) Removed year text from effluent table row names
+#       (2) Added support for multiple outfall (EXO) tables
+#       (3) Added additional Flow parameter_code to parameters.xlsx
+# v2.1: (1) Fixes issue with outfalls not all being "EXO" type (i.e. "LAS" for land application site)
 
 ################################################################################ Function to assign query values #####
 querySetup = function() {
@@ -86,7 +87,7 @@ data = DMR_data %>%
 ################################################################################ Data Subsets for QA/QC Checks #####
 
 effluent = data %>%
-  filter(perm_feature_type_code == "EXO")
+  filter(perm_feature_type_code != "WEL")
 # Split effluent data.frame into list of grouped_dfs
 outfalls = split(effluent, effluent$perm_feature_nmbr)
 # Create empty list to use later for recalling outfall tables
@@ -155,7 +156,7 @@ for (i in seq_along(outfalls)){
   effluent_limit_pivot$addColumnDataGroups("statistical_base_short_desc",
                                            addTotal = FALSE)
   effluent_limit_pivot$defineCalculation(calculationName = paste0("meanLimit_", i),
-                                         summariseExpression = "unique(limit_value_nmbr)")
+                                         summariseExpression = "unique(na.omit(limit_value_nmbr))")
   effluent_limit_pivot$evaluatePivot()
   effluent_limit_basic = effluent_limit_pivot$asBasicTable()
   # Combining effluent tables
