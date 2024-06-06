@@ -10,7 +10,11 @@
 # v2:   (1) Removed year text from effluent table row names
 #       (2) Added support for multiple outfall (EXO) tables
 #       (3) Added additional Flow parameter_code to parameters.xlsx
-# v2.1: (1) Fixes issue with outfalls not all being "EXO" type (i.e. "LAS" for land application site)
+# v2.1: (1) Fixed issue with outfalls not all being "EXO" type
+#           (i.e. "LAS" for land application site)
+# v2.2: (1) Fixed issue with wells labelled "EXO" being grouped with outfalls
+#       (2) Fixed issue arising when there are multiple limits of the same
+#           parameter & type (e.g. Multiple max TN load limits for grown crops)
 
 ################################################################################ Function to assign query values #####
 querySetup = function() {
@@ -73,7 +77,7 @@ parameters = as.data.frame(read_xlsx("parameters.xlsx"))
 
 data = DMR_data %>%
   select(perm_feature_id, perm_feature_nmbr, perm_feature_type_code, monitoring_period_end_date,
-         parameter_code, parameter_desc, limit_value_type_desc, limit_value_nmbr,
+         parameter_code, parameter_desc, limit_value_id, limit_value_type_desc, limit_value_nmbr,
          limit_unit_desc, statistical_base_short_desc, dmr_value_nmbr) %>%
   mutate(monitoring_period_end_date = as_date(monitoring_period_end_date, format = "%m/%d/%Y")) %>%
   inner_join(parameters[,c(1,3)], join_by(parameter_code), relationship = "many-to-many") %>%
@@ -87,7 +91,7 @@ data = DMR_data %>%
 ################################################################################ Data Subsets for QA/QC Checks #####
 
 effluent = data %>%
-  filter(perm_feature_type_code != "WEL")
+  filter(perm_feature_type_code != "WEL" & !grepl("MW", perm_feature_nmbr))
 # Split effluent data.frame into list of grouped_dfs
 outfalls = split(effluent, effluent$perm_feature_nmbr)
 # Create empty list to use later for recalling outfall tables
@@ -101,7 +105,7 @@ for (i in 1:length(outfalls)) {
 }
 
 wells = data %>%
-  filter(perm_feature_type_code == "WEL") %>%
+  filter(perm_feature_type_code == "WEL" | grepl("MW", perm_feature_nmbr)) %>%
   # Extracts numeric well numbers from alphanumeric permit_feature_nmbr column
   mutate(strcapture("(.*?)([[:digit:]]+)", perm_feature_nmbr,
                     proto = list(MW_prefix = "", wellNo = as.numeric()))) %>%
@@ -112,8 +116,10 @@ wells = data %>%
 
 effluent_limits = effluent %>%
   select(perm_feature_nmbr, parameter_code, parameter_desc, statistical_base_short_desc,
-         limit_value_nmbr, limit_unit_desc) %>%
+         limit_value_id, limit_value_nmbr, limit_unit_desc) %>%
   distinct()
+# Test if there are multiple limits for the same statistic type and parameter (e.g. DP-2801)
+multiTest = nrow(distinct(effluent_limits[,c("parameter_desc","statistical_base_short_desc")])) == nrow(distinct(effluent_limits[,c("parameter_desc","limit_value_id")]))
 # Split effluent_limits data.frame into list of grouped_dfs
 outfall_limits = split(effluent_limits, effluent_limits$perm_feature_nmbr)
 # Creates separate grouped_dfs named by outfall
@@ -142,6 +148,8 @@ for (i in seq_along(outfalls)){
                                      addTotal = FALSE)
   effluent_pivot$addColumnDataGroups("statistical_base_short_desc",
                                      addTotal = FALSE)
+  if(multiTest == FALSE) {effluent_pivot$addColumnDataGroups("limit_value_id",
+                                     addTotal = FALSE)}
   effluent_pivot$defineCalculation(calculationName = paste0("meanValue_", i),
                                    summariseExpression = "mean(dmr_value_nmbr, na.rm = T)")
   effluent_pivot$evaluatePivot()
@@ -155,6 +163,8 @@ for (i in seq_along(outfalls)){
                                            addTotal = FALSE)
   effluent_limit_pivot$addColumnDataGroups("statistical_base_short_desc",
                                            addTotal = FALSE)
+  if(multiTest == FALSE) {effluent_limit_pivot$addColumnDataGroups("limit_value_id",
+                                                             addTotal = FALSE)}
   effluent_limit_pivot$defineCalculation(calculationName = paste0("meanLimit_", i),
                                          summariseExpression = "unique(na.omit(limit_value_nmbr))")
   effluent_limit_pivot$evaluatePivot()
@@ -164,7 +174,7 @@ for (i in seq_along(outfalls)){
   effluent_basic$cells$setRow(effluent_basic$rowCount,
                               startAtColumnNumber = 1,
                               cellTypes = c("rowHeader"),
-                              effluent_limit_basic$cells$getRowValues(rowNumber = 3,
+                              effluent_limit_basic$cells$getRowValues(rowNumber = 4,
                                                                       columnNumbers = 1:effluent_limit_basic$columnCount,
                                                                       formattedValue = FALSE,
                                                                       asList = TRUE,
