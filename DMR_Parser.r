@@ -15,6 +15,7 @@
 # v2.2: (1) Fixed issue with wells labelled "EXO" being grouped with outfalls
 #       (2) Fixed issue arising when there are multiple limits of the same
 #           parameter & type (e.g. Multiple max TN load limits for grown crops)
+# v2.3: (1) Fixed issue with "WEL" outfalls being grouped with MWs
 
 ################################################################################ Function to assign query values #####
 querySetup = function() {
@@ -91,7 +92,7 @@ data = DMR_data %>%
 ################################################################################ Data Subsets for QA/QC Checks #####
 
 effluent = data %>%
-  filter(perm_feature_type_code != "WEL" & !grepl("MW", perm_feature_nmbr))
+  filter(!grepl("MW", perm_feature_nmbr))
 # Split effluent data.frame into list of grouped_dfs
 outfalls = split(effluent, effluent$perm_feature_nmbr)
 # Create empty list to use later for recalling outfall tables
@@ -105,7 +106,7 @@ for (i in 1:length(outfalls)) {
 }
 
 wells = data %>%
-  filter(perm_feature_type_code == "WEL" | grepl("MW", perm_feature_nmbr)) %>%
+  filter(grepl("MW", perm_feature_nmbr)) %>%
   # Extracts numeric well numbers from alphanumeric permit_feature_nmbr column
   mutate(strcapture("(.*?)([[:digit:]]+)", perm_feature_nmbr,
                     proto = list(MW_prefix = "", wellNo = as.numeric()))) %>%
