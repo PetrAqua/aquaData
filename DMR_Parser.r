@@ -16,6 +16,8 @@
 #       (2) Fixed issue arising when there are multiple limits of the same
 #           parameter & type (e.g. Multiple max TN load limits for grown crops)
 # v2.3: (1) Fixed issue with "WEL" outfalls being grouped with MWs
+# v2.4: (1) Fixed issue taking values from final row of effluent_limit_basic
+#       (2) Added additional Chloride parameter_code to parameters.xlsx
 
 ################################################################################ Function to assign query values #####
 querySetup = function() {
@@ -175,7 +177,7 @@ for (i in seq_along(outfalls)){
   effluent_basic$cells$setRow(effluent_basic$rowCount,
                               startAtColumnNumber = 1,
                               cellTypes = c("rowHeader"),
-                              effluent_limit_basic$cells$getRowValues(rowNumber = 4,
+                              effluent_limit_basic$cells$getRowValues(rowNumber = effluent_limit_basic$rowCount,
                                                                       columnNumbers = 1:effluent_limit_basic$columnCount,
                                                                       formattedValue = FALSE,
                                                                       asList = TRUE,
