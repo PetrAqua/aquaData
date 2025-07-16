@@ -100,20 +100,20 @@ ECHO_data = function(NPDES_ID, start_date, end_date) {
 DMR_data = ECHO_data(param[[2]], param[[3]], param[[4]])
 ################################################################################
 # Parameter key from github or file
-parametersQuery = function() {
-  response = as.character(readline(prompt = "Indicate whether you would like to download the parameter name key (yes/skip): "))
-  response = ifelse(response %in% c("Yes", "yes", "YES", "Y", "y"), TRUE, FALSE)
-  if(response == TRUE){
+# parametersQuery = function() {
+#   response = as.character(readline(prompt = "Indicate whether you would like to download the parameter name key (yes/skip): "))
+#   response = ifelse(response %in% c("Yes", "yes", "YES", "Y", "y"), TRUE, FALSE)
+#   if(response == TRUE){
     url = "https://github.com/PetrAqua/aquaData/raw/refs/heads/main/parameters.xlsx"
     temp_file = tempfile(fileext = ".xlsx")
     download.file(url, destfile = temp_file, mode = "wb")
     parameters = as.data.frame(read_xlsx(temp_file))
-    message("parameters.xlsx imported to R via Github.")
-  } else {
-    parameters = as.data.frame(read_xlsx("parameters.xlsx"))
-    message("parameters.xlsx imported from local .csv file.")
-  }
-}
+#     message("parameters.xlsx imported to R via Github.")
+#   } else {
+#     parameters = as.data.frame(read_xlsx("parameters.xlsx"))
+#     message("parameters.xlsx imported from local .csv file.")
+#   }
+# }
 
 data = DMR_data %>%
   select(perm_feature_id, perm_feature_nmbr, perm_feature_type_code, monitoring_period_end_date,
