@@ -1,0 +1,84 @@
+---
+output: 
+  word_document:
+    reference_docx: "notice-styles-template.docx"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r dataset, include=FALSE, echo=FALSE}
+
+library(tidyverse)
+library(googledrive)
+library(httr)
+library(jsonlite)
+
+# Importing fillable form data in .txt format
+appText <- read_delim("C:/Users/lhudson/Documents/MDE_WMA4_GW_DP_App_dummyData.txt",
+                      delim = "\t", quote = '""')
+
+permitNo <- "25DP1234" # Placeholder for permit number used in public notice
+
+# EJ Score GIS source
+base_url <- "https://mde.geodata.md.gov/mdedata/rest/services/EJ/MDEnviroScreen/MapServer/0"
+
+query_url <- paste0(
+  base_url,
+  "/query?", # This is the query endpoint
+  "where=1=1", # A simple query to select all features initially
+  "&outFields=*", # Return all attribute fields
+  "&geometryType=esriGeometryPoint", # We are sending a point
+  "&geometry=", appText$facLong, ",", appText$facLat, # The coordinates in X,Y format
+  "&inSR=4326", # The spatial reference for our lat/lon coordinates (WGS 84)
+  "&spatialRel=esriSpatialRelIntersects", # Find the polygon that our point intersects
+  "&f=json" # Request the output in JSON format
+)
+
+response <- httr::GET(url = query_url)
+
+if (httr::status_code(response) == 200) {
+  result <- jsonlite::fromJSON(httr::content(response, "text"))
+  if (length(result$features) > 0) {
+    attributes_df <- result$features$attributes
+    print("Successfully found the following data at the coordinates:")
+    print(attributes_df)
+    ejScore <- attributes_df$P_EJ
+    cat("\nEJ Score:", ejScore, "\n")
+  } else {
+    print("No features were found at the specified coordinates.")
+  }
+} else {
+  print(paste("Error: The request failed with status code", httr::status_code(response)))
+}
+
+```
+
+# MARYLAND DEPARTMENT OF THE ENVIRONMENT
+# WATER AND SCIENCE ADMINISTRATION
+
+
+## NOTICE OF APPLICATION RECEIVED  
+
+
+[**`r paste0(appText$facCounty," County")`**]{.underline}  
+
+[**Application for State Discharge Permit `r permitNo`**]{.underline}  
+
+`r paste0(appText$appName, ", ", appText$appAddress, ", ", appText$appCity, ", ", appText$appState, " ", appText$appZIP)` submitted an application to renew a permit to discharge a monthly average of `r appText$avgGPD` gallons per day of treated domestic wastewater from `r paste0(appText$facName)`, located at `r paste0(appText$facAddress, ", ", appText$facCity, ", Maryland ", appText$facZIP)` to groundwaters via `r paste0(appText$'disAT_es_:title')`.
+
+Per MD Environmental Article § 1–602(a)(2), an EJ score was calculated for this facility. The EJ Score is **`r ejScore`**. This score has been calculated considering a combination of the following factors: Pollution Burden Exposure Percentile, Pollution Burden Environmental Effects Percentile, and Sensitive Population Percentile. For more information on how the score was calculated, launch the MDEnviroScreen tool from this website - https://mdewwp.page.link/EJ.
+
+A copy of the permit application may be downloaded from the Department’s website at https://mdewwp.page.link/wwpportal. At that webpage, search for State Number `r permitNo`, click “More Info,” and then select the desired document(s) to download.  
+
+Facility Contact:  
+`r appText$appPOC`  
+Tel: `r appText$appPhone`  
+
+Project Manager:  
+Mary Dela Onyemaechi  
+Tel: (410) 537-3106
+
+
+
