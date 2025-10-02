@@ -28,3 +28,7 @@ This script is like the original DMR_Parser.R script, but provides an output tha
 ## app.R
 
 This Shiny app is a version of the DMR_Parser_Formatted.R code that can be published and used outside of an R IDE. The application allows for display and inspection of the raw data taken from ECHO, as well as renders the formatted DMR summary tables. The raw data and tables can be exported from the application to an Excel file.
+
+## ARNotice_v0.5.Rmd
+
+This R Markdown script is a proof of concept that allows users to generate a Notice of Application Received with the data extracted from a permit application. This script will eventually be incorporated into a Shiny app capable of generating all permitting documents with the data extracted from completed permit applications and other data sources. The notice-styles-template.docx and MDE_WMA4_GW_DP_App_dummyData.txt files are currently required to run this R Markdown script.
