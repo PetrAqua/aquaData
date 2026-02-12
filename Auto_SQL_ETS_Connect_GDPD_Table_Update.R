@@ -125,7 +125,7 @@ cleandbwal <- per_fac_wal %>%
   filter(is.na(npdes_num) == FALSE) %>%
   arrange(desc(completed_date))
 
-geoDat <- read.xlsx("C://Users/lhudson/Documents/aquaData/Groundwater_Discharge_Permit_Coordinates.xlsx",sheet = 1) # Coordinates are in Web Mercator (meters)
+geoDat <- read.xlsx("https://github.com/PetrAqua/aquaData/raw/refs/heads/main/Groundwater_Discharge_Permit_Coordinates.xlsx") # Coordinates are in Web Mercator (meters)
 geoDat2 <- geoDat %>%
   select(X,Y,NPDES.Number,Permit.Number,Facility.Name) %>%
   mutate(permit_id = str_sub(Permit.Number,3, 8)) %>%
