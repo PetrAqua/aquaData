@@ -119,7 +119,8 @@ cleandbwal <- per_fac_wal %>%
     TRUE ~ "Status Unavailable"
   )) %>%
   group_by(permit_id) %>%
-  mutate(latest = custom_task_desc_rank == max(custom_task_desc_rank) & permit_number == max(permit_number)) %>%
+  mutate(latest = permit_number == max(permit_number) &
+           custom_task_desc_rank == max(custom_task_desc_rank[permit_number == max(permit_number)])) %>%
   mutate(latest = as.integer(latest)) %>%
   ungroup() %>%
   filter(is.na(npdes_num) == FALSE) %>%
