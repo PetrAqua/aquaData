@@ -142,9 +142,9 @@ output_file <- "C://Users/lhudson/Documents/aquaData/ETS_Report_geo.geojson"
 
 st_write(sf_object_geo, output_file, driver = "GeoJSON", delete_dsn = TRUE)
 
-insp_file <- "C://Users/lhudson/Documents/aquaData/ETS_Inspections_sheet.xlsx"
+insp_file <- "C://Users/lhudson/Documents/aquaData/ETS_Inspections_sheet.csv"
 
-insp_tbl <- write.xlsx(inspections_df, insp_file)
+insp_tbl <- write_csv(inspections_df, insp_file)
 
 repo_path <- "C://Users/lhudson/Documents/aquaData"
 
@@ -153,7 +153,7 @@ git_open(repo_path)
 message(paste(Sys.time(), " - STATUS: Starting Git stage/commit."))
 
 git_add("ETS_Report_geo.geojson", repo = repo_path)
-git_add("ETS_Inspections_sheet.xlsx", repo = repo_path)
+git_add("ETS_Inspections_sheet.csv", repo = repo_path)
 
 gert::git_config_set("user.name", "MDE GDPD R Script", repo = repo_path)
 gert::git_config_set("user.email", "lukehudson422@yahoo.com", repo = repo_path)
@@ -162,7 +162,7 @@ status_df <- gert::git_status(repo = repo_path)
 
 has_changes_to_commit <- any(
   status_df$file == "ETS_Report_geo.geojson" & status_df$staged,
-  status_df$file == "ETS_Inspections_sheet.xlsx" & status_df$staged)
+  status_df$file == "ETS_Inspections_sheet.csv" & status_df$staged)
 
 if (has_changes_to_commit) {
   message(paste(Sys.time(), " - SUCCESS: Changes detected. Proceeding with commit and push."))
@@ -177,7 +177,7 @@ if (has_changes_to_commit) {
 
   message(paste(Sys.time(), " - COMPLETE: Repository successfully updated."))
 } else {
-  message(paste(Sys.time(), " - ALERT: No changes detected in ETS_Report_geo.geojson. Script finished without commit/push."))
+  message(paste(Sys.time(), " - ALERT: No changes detected in data. Script finished without commit/push."))
 }
 
 invisible(TRUE)
