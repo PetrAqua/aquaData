@@ -1,4 +1,5 @@
 # Direct SQL Server ETS Connection Script (Initial draft 2/12/26)
+# Added inspections data from ETS to script (2/24/26)
 
 start_time <- Sys.time()
 message(paste(start_time, " - START: R Script execution started."))
@@ -19,13 +20,6 @@ con <- dbConnect(odbc::odbc(),
                  uid = "MDE_MESReadUser",
                  pwd = "MDE_MESReadU5er2o20!")
 
-# Future connection to ETS inspections data
-
-# inspections_df <- tbl(con, Id(schema = "WMA", table = "v_wma_inspections_rs")) %>%
-#   filter(permit_num %like% "%DP%" &
-#            media_type %like% "%Ground%") %>%
-#   collect()
-
 permits <- tbl(con, Id(schema = "MES", table = "MV_WMA_EPSC_PERMIT")) %>%
   mutate(cur_status_comments = sql("CAST(cur_status_comments AS VARCHAR(4000))")) %>%
   filter(permit_type == "Groundwater") %>%
@@ -34,6 +28,13 @@ facilities <- tbl(con, Id(schema = "MES", table = "MV_WMA_EPSC_FACILITY")) %>%
   collect()
 wal <- tbl(con, Id(schema = "MES", table = "V_WMA_WWPP_WAL")) %>%
   collect()
+inspections_df <- tbl(con, Id(schema = "WMA", table = "v_wma_inspections_rs")) %>%
+  filter(media_type %like% "%al Ground Water%") %>%
+  collect() %>%
+  select(-county, -approvedbysupervisor, -mda_operator_id, -reference_task_id) %>%
+  mutate(inspection_date = as.Date(inspection_date),
+         inspection_end_date = as.Date(inspection_end_date)) %>%
+  unique()
 
 dbDisconnect(con)
 
@@ -48,15 +49,7 @@ cleandbwal <- per_fac_wal %>%
          "exp_date","approval_issued",
          "prev_permit_exp", "effective_end_date",
          "custom_task_desc","completed_date") %>%
-  mutate(cur_status_date = as.Date(cur_status_date),
-         orig_sub_date = as.Date(orig_sub_date),
-         lst_issu = as.Date(lst_issu),
-         exp_date = as.Date(exp_date),
-         approval_issued = as.Date(approval_issued),
-         prev_permit_exp = as.Date(prev_permit_exp),
-         effective_end_date = as.Date(effective_end_date),
-         completed_date = as.Date(completed_date),
-         permit_number = ifelse(is.na(permit_num), app_num, permit_num),
+  mutate(permit_number = ifelse(is.na(permit_num), app_num, permit_num),
          permit_id = substr(permit_number, 3, 8)) %>%
   select("permit_id","permit_number","npdes_num","master_ai_name","COUNTY_DESC",
          "perwriter_userid","ptype","permit_class","permit_mode","cur_status_descr","cur_status_date",
@@ -110,12 +103,12 @@ cleandbwal <- per_fac_wal %>%
     TRUE ~ "" # If no matches
   )) %>%
   mutate(added_status_desc = case_when(
-    cur_status_descr == "Issued" ~ paste(cur_status_descr, lst_issu),
-    cur_status_descr == "Issued - Admin Extended" ~ paste(cur_status_descr, exp_date),
-    cur_status_descr == "Approval Terminated" ~ paste(cur_status_descr, effective_end_date),
-    cur_status_descr == "Application Withdrawn" ~ paste(cur_status_descr, cur_status_date),
-    cur_status_descr == "Pending Effective" ~ paste(cur_status_descr, lst_issu),
-    cur_status_descr == "Pending" ~ paste(custom_task_desc_cat, completed_date),
+    cur_status_descr == "Issued" ~ paste(cur_status_descr, as.Date(lst_issu)),
+    cur_status_descr == "Issued - Admin Extended" ~ paste(cur_status_descr, as.Date(exp_date)),
+    cur_status_descr == "Approval Terminated" ~ paste(cur_status_descr, as.Date(effective_end_date)),
+    cur_status_descr == "Application Withdrawn" ~ paste(cur_status_descr, as.Date(cur_status_date)),
+    cur_status_descr == "Pending Effective" ~ paste(cur_status_descr, as.Date(lst_issu)),
+    cur_status_descr == "Pending" ~ paste(custom_task_desc_cat, as.Date(completed_date)),
     TRUE ~ "Status Unavailable"
   )) %>%
   group_by(permit_id) %>%
@@ -141,7 +134,6 @@ gwDat <- etsDat %>% # All data with geocoding
   select(-c(NPDES.Number,Permit.Number,Facility.Name)) %>%
   filter(is.na(X) == FALSE)
 
-
 sf_object <- st_as_sf(gwDat, coords = c("X", "Y"), crs = 3857) # WGS84 equivalent (Meters / Web Mercator)
 
 sf_object_geo <- st_transform(sf_object, 4326) # Transform to WGS84 decimal system
@@ -150,6 +142,10 @@ output_file <- "C://Users/lhudson/Documents/aquaData/ETS_Report_geo.geojson"
 
 st_write(sf_object_geo, output_file, driver = "GeoJSON", delete_dsn = TRUE)
 
+insp_file <- "C://Users/lhudson/Documents/aquaData/ETS_Inspections_sheet.xlsx"
+
+insp_tbl <- write.xlsx(inspections_df, insp_file)
+
 repo_path <- "C://Users/lhudson/Documents/aquaData"
 
 git_open(repo_path)
@@ -157,6 +153,7 @@ git_open(repo_path)
 message(paste(Sys.time(), " - STATUS: Starting Git stage/commit."))
 
 git_add("ETS_Report_geo.geojson", repo = repo_path)
+git_add("ETS_Inspections_sheet.xlsx", repo = repo_path)
 
 gert::git_config_set("user.name", "MDE GDPD R Script", repo = repo_path)
 gert::git_config_set("user.email", "lukehudson422@yahoo.com", repo = repo_path)
@@ -164,7 +161,8 @@ gert::git_config_set("user.email", "lukehudson422@yahoo.com", repo = repo_path)
 status_df <- gert::git_status(repo = repo_path)
 
 has_changes_to_commit <- any(
-  status_df$file == "ETS_Report_geo.geojson" & status_df$staged)
+  status_df$file == "ETS_Report_geo.geojson" & status_df$staged,
+  status_df$file == "ETS_Inspections_sheet.xlsx" & status_df$staged)
 
 if (has_changes_to_commit) {
   message(paste(Sys.time(), " - SUCCESS: Changes detected. Proceeding with commit and push."))
