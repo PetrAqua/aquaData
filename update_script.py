@@ -1,10 +1,13 @@
+import os
+import requests
 from arcgis.gis import GIS
 from arcgis.features import FeatureLayerCollection
-import requests
-import os
+
+username = os.getenv('ARCGIS_USER')
+password = os.getenv('ARCGIS_PASS')
 
 # 1. Connect to ArcGIS Online (automatically uses your Notebook credentials)
-gis = GIS("home")
+gis = GIS("https://www.arcgis.com", username, password)
 
 # 2. Define IDs and URLs
 geojson_url = "https://raw.githubusercontent.com/PetrAqua/aquaData/main/ETS_Report_geo.geojson"
@@ -12,7 +15,7 @@ feature_layer_item_id = "8d1944d08b79449fbd21401826cdc7ef"
 
 # 3. Download the latest GeoJSON from GitHub to the Notebook's local storage
 response = requests.get(geojson_url)
-file_path = "/arcgis/home/ETS_Report_geo.geojson"
+file_path = "ETS_Report_geo.geojson"
 with open(file_path, 'wb') as f:
     f.write(response.content)
 
@@ -26,7 +29,7 @@ csv_url = "https://github.com/PetrAqua/aquaData/raw/main/ETS_Inspections_sheet.c
 feature_layer_item_id = "0a9a8f6e29c64aef8af9de4e8e9ea6a3"
 
 response = requests.get(csv_url)
-file_path = "/arcgis/home/ETS_Inspections_sheet.csv"
+file_path = "ETS_Inspections_sheet.csv"
 with open(file_path, 'wb') as f:
     f.write(response.content)
 
