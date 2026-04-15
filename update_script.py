@@ -3,11 +3,11 @@ import requests
 from arcgis.gis import GIS
 from arcgis.features import FeatureLayerCollection
 
-username = os.getenv('ARCGIS_USER')
-password = os.getenv('ARCGIS_PASS')
+client_id = os.getenv('ARCGIS_CLIENT_ID')
+client_secret = os.getenv('ARCGIS_CLIENT_SECRET')
 
 # 1. Connect to ArcGIS Online (automatically uses your Notebook credentials)
-gis = GIS("https://www.arcgis.com", username, password)
+gis = GIS("https://www.arcgis.com", client_id=client_id, client_secret=client_secret)
 
 # 2. Define IDs and URLs
 geojson_url = "https://raw.githubusercontent.com/PetrAqua/aquaData/main/ETS_Report_geo.geojson"
