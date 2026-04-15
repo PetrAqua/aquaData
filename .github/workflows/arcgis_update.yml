@@ -2,9 +2,8 @@ name: Daily ArcGIS Layer Update
 
 on:
   schedule:
-    # This runs at 00:00 UTC every day (Adjust as needed)
     - cron: '0 0 * * *'
-  workflow_dispatch: # Allows you to run it manually for testing
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,18 +12,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: '3.9'
+          auto-update-conda: true
+          python-version: '3.9' # Consistent version
+          channels: esri,conda-forge
+          channel-priority: true
 
-      - name: Install dependencies
+      - name: Install ArcGIS via Conda
+        shell: bash -l {0}
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install arcgis requests
+          conda install arcgis requests -y
 
       - name: Run Update Script
+        shell: bash -l {0}
         env:
-          ARCGIS_USER: ${{ secrets.ARCGIS_USER }}
-          ARCGIS_PASS: ${{ secrets.ARCGIS_PASS }}
+          ARCGIS_CLIENT_ID: ${{ secrets.ARCGIS_CLIENT_ID }}
+          ARCGIS_CLIENT_SECRET: ${{ secrets.ARCGIS_CLIENT_SECRET }}
         run: python update_script.py
