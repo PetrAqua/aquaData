@@ -1,9 +1,9 @@
 name: Daily ArcGIS Layer Update
 
-on:
-  schedule:
+#on:
+ # schedule:
     #- cron: '0 0 * * *'
-  workflow_dispatch:
+  #workflow_dispatch:
 
 jobs:
   build:
