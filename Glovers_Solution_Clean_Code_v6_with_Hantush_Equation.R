@@ -7,21 +7,24 @@ library(mosaicCalc)
 
 bgs <-        15 # placeholder to allow for starting depth of water table in ft below ground surface
 
-rechargeR <-  2 # ft/day
-storageC <-   0.2 # unitless
-transM <-     2500 # sqft/day
+rechargeR <-  0.067 # ft/day (aka hydraulic loading rate which is normally expressed as gpd/sqft) - 0.0167 ft/day based on 5,000 gpd over 200 ft by 200 ft area
+storageC <-   0.2 # unitless (amount of soil volume that is empty space able to be filled with or drained of water)
+transM <-     2500 # sqft/day (equal to K conductivity in ft/day multiplied by the b saturated aquifer thickness in ft)
 bWidth <-     200 # ft
 bLength <-    200 # ft
 distance <-   seq(-500, 500, by = 50) # ft
 xvar <-       sqrt((distance^2)/2)
 yvar <-       xvar
-time <-       30 # days
+time <-       7305 # days (7305 days is equal to 20 years)
 e <-          exp(1) # Euler's number
 
-uvar1 <- (xvar - (bWidth / 2)) / ((4 * transM) / (storageC * time))
-uvar2 <- (xvar + (bWidth / 2)) / ((4 * transM) / (storageC * time))
-uvar3 <- (yvar - (bLength / 2)) / ((4 * transM) / (storageC * time))
-uvar4 <- (yvar + (bLength / 2)) / ((4 * transM) / (storageC * time))
+# Corrected uvar calculation with standard Hantush dimensionless scaling
+denom <- sqrt((4 * transM * time) / storageC)
+
+uvar1 <- (xvar - (bWidth / 2)) / denom
+uvar2 <- (xvar + (bWidth / 2)) / denom
+uvar3 <- (yvar - (bLength / 2)) / denom
+uvar4 <- (yvar + (bLength / 2)) / denom
 
 uvar <- cbind(uvar1,uvar2,uvar3,uvar4) # matrix of uvar vectors
 uvar_pairs <- list(uvar[,c(2,4)],uvar[,c(2,3)],uvar[,c(1,4)],uvar[,c(1,3)]) # list of paired vectors for each integral in equation (2)
@@ -135,8 +138,6 @@ final
 #   xlim(min(distance), max(distance)) +
 #   ylim(0, bgs) +
 #   theme_bw()
-
-library(plotly)
 
 final %>%
   plot_ly(x = ~distance, y = ~resultH, type = "scatter", mode = "lines",
