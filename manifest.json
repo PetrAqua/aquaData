@@ -3492,6 +3492,35 @@
         "Built": "R 4.3.3; ; 2024-04-16 01:53:28 UTC; windows"
       }
     },
+    "pivottabler": {
+      "Source": "CRAN",
+      "Repository": "https://cran.rstudio.com",
+      "description": {
+        "Package": "pivottabler",
+        "Type": "Package",
+        "Title": "Create Pivot Tables",
+        "Version": "1.5.5",
+        "Authors@R": "person(\"Christopher\", \"Bailiss\", email = \"cbailiss@gmail.com\",\n  role = c(\"aut\", \"cre\"))",
+        "Description": "Create regular pivot tables with just a few lines of R.  \n    More complex pivot tables can also be created, e.g. pivot tables\n    with irregular layouts, multiple calculations and/or derived \n    calculations based on multiple data frames.  Pivot tables are\n    constructed using R only and can be written to a range of\n    output formats (plain text, 'HTML', 'Latex' and 'Excel'), \n    including with styling/formatting.",
+        "Depends": "R (>= 3.3.0)",
+        "Imports": "R6 (>= 2.2.0), dplyr (>= 0.5.0), data.table (>= 1.10.0),\nhtmltools(>= 0.3.5), htmlwidgets (>= 0.8)",
+        "Suggests": "ggplot2 (>= 2.2.0), jsonlite (>= 1.1), lubridate (>= 1.5.0),\nlistviewer (>= 1.4.0), openxlsx (>= 4.0.17), basictabler (>=\n1.0.2), shiny, knitr, rmarkdown, testthat",
+        "License": "GPL-3",
+        "Encoding": "UTF-8",
+        "LazyData": "true",
+        "URL": "http://www.pivottabler.org.uk/,\nhttps://github.com/cbailiss/pivottabler",
+        "BugReports": "https://github.com/cbailiss/pivottabler/issues",
+        "VignetteBuilder": "knitr",
+        "RoxygenNote": "7.2.3",
+        "NeedsCompilation": "no",
+        "Packaged": "2023-10-01 15:39:47 UTC; bailis01",
+        "Author": "Christopher Bailiss [aut, cre]",
+        "Maintainer": "Christopher Bailiss <cbailiss@gmail.com>",
+        "Repository": "CRAN",
+        "Date/Publication": "2023-10-01 16:20:02 UTC",
+        "Built": "R 4.3.3; ; 2024-04-21 02:40:20 UTC; windows"
+      }
+    },
     "pkgbuild": {
       "Source": "CRAN",
       "Repository": "https://cran.rstudio.com",
@@ -5703,7 +5732,7 @@
   },
   "files": {
     "appMounding.R": {
-      "checksum": "17d3d35a3ec23ac9ea3f9708173dfdd9"
+      "checksum": "8d044221e0d4bf2cbae70a369cb96607"
     }
   },
   "users": null

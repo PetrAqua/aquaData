@@ -13,6 +13,7 @@ library(statmod)
 library(EstimationTools)
 library(mosaicCalc)
 library(reshape2)
+library(pivottabler)
 
 ui <- page_sidebar(
   title = "Groundwater Mounding Model",
