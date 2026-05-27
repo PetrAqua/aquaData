@@ -12,6 +12,7 @@ library(plotly)
 library(statmod)
 library(EstimationTools)
 library(mosaicCalc)
+library(reshape2)
 
 ui <- page_sidebar(
   title = "Groundwater Mounding Model",
