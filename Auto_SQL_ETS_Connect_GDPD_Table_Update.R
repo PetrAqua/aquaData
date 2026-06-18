@@ -1,5 +1,6 @@
 # Direct SQL Server ETS Connection Script (Initial draft 2/12/26)
 # Added inspections data from ETS to script (2/24/26)
+# Added ArcGIS Online layer update codes, VW and CT support, and more coordinates (4/16/26)
 
 start_time <- Sys.time()
 message(paste(start_time, " - START: R Script execution started."))
@@ -127,14 +128,55 @@ geoDat2 <- geoDat %>%
 
 etsDat <- cleandbwal
 
-# There are ~170 facilities in the ETS data table that have not been geocoded in the GIS data table - will need to fix in the future
+# Unconfirmed coordinates taken from ETS facility table as subbedCoords - facilities with no ETS coordinates subset as missingCoords table
+# Some missingCoords facilities have addresses that can be geocoded in the future - subbedCoords facilities can be validated with addresses in future too
 
-gwDat <- etsDat %>% # All data with geocoding
+gwDat <- etsDat %>% # All data with geocoding in xlsx file
   full_join(geoDat2, by = "permit_id") %>%
-  select(-c(NPDES.Number,Permit.Number,Facility.Name)) %>%
-  filter(is.na(X) == FALSE)
+  mutate(master_ai_name = coalesce(master_ai_name, Facility.Name),
+         permit_number = coalesce(permit_number, Permit.Number),
+         npdes_num = coalesce(npdes_num, NPDES.Number),
+         ptype = if_else(is.na(ptype) & grepl("CT|VW", permit_id), "WMA5", ptype)) %>%
+  select(-c(NPDES.Number,Permit.Number,Facility.Name))
 
-sf_object <- st_as_sf(gwDat, coords = c("X", "Y"), crs = 3857) # WGS84 equivalent (Meters / Web Mercator)
+match_keys <- facilities %>% # Allow matching of facility name across multiple alternate name columns in facilities data frame
+  mutate(row_id = row_number()) %>% 
+  pivot_longer(
+    cols = c(master_ai_name, DOC_MASTER_AI_NAME, alternate_ai_name, FAC_NAME),
+    values_to = "join_key",
+    values_drop_na = TRUE
+  ) %>%
+  distinct(row_id, join_key)
+
+noCoords <- unique(gwDat[is.na(gwDat$X) & gwDat$latest == 1,c(1:4, 9, 22:25)]) # Sites with no coordinates from xlsx
+noCoords_subbed <- noCoords %>% # Sites with no coordinates matched to ETS coordinates
+  left_join(match_keys, by = c("master_ai_name" = "join_key")) %>%
+  left_join(facilities[,c(6:14, 42:43)] %>%
+  mutate(row_id = row_number()), by = "row_id") %>%
+  select(-row_id) %>%
+  distinct(master_ai_name.x, .keep_all = TRUE) %>%
+  mutate(X = coalesce(X, x_coord_standard_value),
+         Y = coalesce(Y, y_coord_standard_value)) %>%
+  select(1:4, 8:9, 14:18)
+subbedCoords <- noCoords_subbed %>% # All sites that have ETS coordinates
+  filter(is.na(X) == FALSE)
+missingCoords <- noCoords_subbed %>% # All sites without ETS coordinates
+  filter(is.na(X))
+subbedCoords_sf <- st_as_sf(subbedCoords, coords = c("X", "Y"), crs = 4326)
+subbedCoords_t <- st_transform(subbedCoords_sf, 3857) # Convert to xlsx coordinate system
+subbedCoords2 <- subbedCoords_t %>%
+  mutate(X = st_coordinates(.)[, "X"],
+         Y = st_coordinates(.)[, "Y"]) %>%
+  st_drop_geometry()
+
+gwDat2 <- gwDat %>% # All data with geocoding joined to ETS coordinate sites
+  left_join(subbedCoords2[,c(4, 10:11)], by = join_by(master_ai_name == master_ai_name.x)) %>%
+  mutate(X = coalesce(X.x, X.y),
+         Y = coalesce(Y.x, Y.y)) %>%
+  filter(is.na(X) == FALSE) %>%
+  select(-c(24:27))
+
+sf_object <- st_as_sf(gwDat2, coords = c("X", "Y"), crs = 3857) # WGS84 equivalent (Meters / Web Mercator)
 
 sf_object_geo <- st_transform(sf_object, 4326) # Transform to WGS84 decimal system
 
@@ -179,5 +221,37 @@ if (has_changes_to_commit) {
 } else {
   message(paste(Sys.time(), " - ALERT: No changes detected in data. Script finished without commit/push."))
 }
+
+### Using R to update the layers in ArcGIS Online ###
+
+library(arcgisutils)
+library(arcgislayers)
+
+client_id <- Sys.getenv("ARCGIS_CLIENT_ID")
+client_secret <- Sys.getenv("ARCGIS_CLIENT_SECRET")
+
+token <- auth_client(client_id, client_secret)
+set_arc_token(token)
+
+print("Reading local data...")
+geo_data <- sf_object_geo
+csv_data <- insp_tbl
+
+geo_layer_url <- "https://services.arcgis.com/njFNhDsUCentVYJW/arcgis/rest/services/ETS_Report_geojson_hosted/FeatureServer/0"
+csv_table_url <- "https://services.arcgis.com/njFNhDsUCentVYJW/arcgis/rest/services/ETS_Inspections_Table/FeatureServer/0"
+
+geo_layer <- arc_open(geo_layer_url)
+csv_table <- arc_open(csv_table_url)
+
+print("Updating spatial layer...")
+geo_data_matched <- st_transform(geo_data, crs = st_crs(geo_layer))
+delete_features(geo_layer, where = "1=1")
+add_features(geo_layer, geo_data_matched)
+
+print("Updating inspections table...")
+delete_features(csv_table, where = "1=1")
+add_features(csv_table, csv_data)
+
+print("ArcGIS layers updated successfully!")
 
 invisible(TRUE)
