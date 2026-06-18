@@ -1,6 +1,7 @@
 # Direct SQL Server ETS Connection Script (Initial draft 2/12/26)
 # Added inspections data from ETS to script (2/24/26)
 # Added ArcGIS Online layer update codes, VW and CT support, and more coordinates (4/16/26)
+# Removed as.Date() functions from inspections_df to fix ArcGIS importing issues (6/18/26)
 
 start_time <- Sys.time()
 message(paste(start_time, " - START: R Script execution started."))
@@ -13,6 +14,8 @@ library(gert)
 library(sf)
 
 message(paste(Sys.time(), " - STATUS: Starting data creation and saving."))
+
+options(scipen = 999)
 
 con <- dbConnect(odbc::odbc(),
                  Driver = "SQL Server",
@@ -33,8 +36,6 @@ inspections_df <- tbl(con, Id(schema = "WMA", table = "v_wma_inspections_rs")) %
   filter(media_type %like% "%al Ground Water%") %>%
   collect() %>%
   select(-county, -approvedbysupervisor, -mda_operator_id, -reference_task_id) %>%
-  mutate(inspection_date = as.Date(inspection_date),
-         inspection_end_date = as.Date(inspection_end_date)) %>%
   unique()
 
 dbDisconnect(con)
@@ -235,7 +236,7 @@ set_arc_token(token)
 
 print("Reading local data...")
 geo_data <- sf_object_geo
-csv_data <- insp_tbl
+csv_data <- inspections_df
 
 geo_layer_url <- "https://services.arcgis.com/njFNhDsUCentVYJW/arcgis/rest/services/ETS_Report_geojson_hosted/FeatureServer/0"
 csv_table_url <- "https://services.arcgis.com/njFNhDsUCentVYJW/arcgis/rest/services/ETS_Inspections_Table/FeatureServer/0"
