@@ -1,5 +1,6 @@
 # Groundwater Mounding Program as Adapted from Sunada's BASIC Microcomputer Program for the R Shiny Application.
 # Version -> May 27, 2026 by Luke Hudson
+# WORK IN PROGRESS TO ADD SUBUNITS TO BASIN AND FRACTION OF UNIT AREA AS TRENCH AREA
 
 library(shiny)
 library(bslib)
@@ -25,7 +26,7 @@ ui <- page_sidebar(
                             bs_icon("question-circle"),
                             title = "Calculate the Recharge Rate",
                             "The recharge or hydraulic loading rate is a function of the discharge volume and the discharge area.\n
-        Provide the flow in gpd to calculate the recharge rate in ft/day for the current basin area:",
+        Provide the flow in gpd to calculate the recharge rate in ft/day for the current recharge area:",
         numericInput("dischargeRate", "Discharge Rate (gpd):", FALSE),
         actionButton("calculateRate", "Calculate")
                           )), 0.0334)
@@ -72,7 +73,36 @@ ui <- page_sidebar(
               value = 150,
               min = 10
             )
-          )))
+          )),
+          card(checkboxInput("useSubunits", label = tagList(
+            "Basin Subunits",
+            popover(
+              bs_icon("question-circle"),
+              title = "Basin Subunits",
+              "Calculate groundwater mounding for a basin with separate subunits. 
+              Assumes subunits are parallel with optional separation along the width of the basin. 
+              Define the spacing between each subunit and the total fraction of each subunit serving as the trench area."
+            )), FALSE),
+            conditionalPanel(
+              condition = "input.useSubunits == true",
+              numericInput(
+                inputId = "subUnits",
+                label = "Number of Subunits in Basin:",
+                value = 1
+              ),
+              numericInput(
+                inputId = "subSpace",
+                label = "Distance Between Each Subunit (ft):",
+                value = 0
+              ),
+              numericInput(
+                inputId = "fTrench",
+                label = "Fraction of Subunits as Trench Area:",
+                value = 1.0,
+                max = 1.0
+              )
+            ))
+          )
                     ),
         card(
           card_header("Aquifer Information"),
@@ -310,114 +340,244 @@ server <- function(input, output, session) {
 
   ### MOUND CALCULATED DATA ###
 
+  # mound_data <- reactive({
+  #   bgs <- input$waterDepth
+  #   rechargeR <- input$rechargeRate
+  #   storageC <- input$specificYield
+  #   transM <- input$transmissivity
+  #   bWidth <- input$basinX
+  #   bLength <- input$basinY
+  #   radius <- input$moundRadius
+  #   increment <- input$radiusIncrement
+  #   time <- input$rechargePeriod
+  #   e <- exp(1)
+  # 
+  #   # Checkbox toggle from the UI
+  #   use_stream <- input$useStream
+  # 
+  #   # Generate the spatial grid sequences
+  #   x_seq <- seq(-1 * radius, radius, by = increment)
+  #   y_seq <- seq(-1 * radius, radius, by = increment)
+  #   grid <- expand.grid(xvar = x_seq, yvar = y_seq)
+  # 
+  #   solve_hantush <- function(x_coords, y_coords) {
+  #     denom <- sqrt((4 * transM * time) / storageC)
+  #     uvar1 <- (x_coords - (bWidth / 2)) / denom
+  #     uvar2 <- (x_coords + (bWidth / 2)) / denom
+  #     uvar3 <- (y_coords - (bLength / 2)) / denom
+  #     uvar4 <- (y_coords + (bLength / 2)) / denom
+  # 
+  #     uvar <- cbind(uvar1, uvar2, uvar3, uvar4)
+  #     uvar_pairs <- list(uvar[,c(2,4)], uvar[,c(2,3)], uvar[,c(1,4)], uvar[,c(1,3)])
+  # 
+  #     ints <- list()
+  #     out_vector <- numeric(length(x_coords))
+  # 
+  #     # Loop Math Helpers
+  #     nodes <- c(0.238619186, 0.661209386, 0.932469514, -0.932469514, -0.661209386, -0.238619186)
+  #     weights <- c(0.467913935, 0.360761573, 0.171324492, 0.171324492, 0.360761573, 0.467913935)
+  # 
+  #     Mstar = function(ui, uj){
+  #       if (is.na(ui) || is.nan(ui) || ui == 0) return(0)
+  #       Mstar <- ui / pi
+  #       resultM <- 0
+  #       for (k in 1:length(nodes)) {
+  #         r_k <- (nodes[k] + 1) * (uj / (2 * ui))
+  #         resultM <- resultM + (exp((-uj^2) * (1 + r_k^2)) / (1 + r_k^2)) * weights[k]
+  #       }
+  #       return(Mstar * resultM)
+  #     }
+  # 
+  #     wellf <- function(u){
+  #       if (u <= 1) {
+  #         if (u <= 0) return(0)
+  #         return(-0.57721566 - log(u) + (0.99999193 * u) + (-0.24991055 * u^2) + (0.05519968 * u^3) + (-0.00976004 * u^4) + (0.00107857 * u^5))
+  #       } else {
+  #         return((1/(u * exp(u))) * (((u^4) + (8.57332874 * u^3) + (18.0590170 * u^2) + (8.63476089 * u) + 0.267773734) / ((u^4) + (9.57332235 * u^3) + (25.6329561 * u^2) + (21.0996531 * u) + 3.95849692)))
+  #       }
+  #     }
+  # 
+  #     erf <- function(uraw){
+  #       sign <- ifelse(uraw < 0, -1, 1)
+  #       u <- abs(uraw)
+  #       bvar <- 1/(1 + (0.3275911 * u))
+  #       return(sign * (1 - ((0.254829592 * bvar) + (-0.284496736 * bvar^2) + (1.421413741 * bvar^3) + (-1.453152027 * bvar^4) + (1.06140543 * bvar^5)) * e^(-u^2)))
+  #     }
+  # 
+  #     for (z in 1:length(x_coords)) {
+  #       for (q in 1:length(uvar_pairs)) {
+  #         uvari <- uvar_pairs[[q]][z, 1]
+  #         uvarj <- uvar_pairs[[q]][z, 2]
+  # 
+  #         mstar_term1 <- if (uvari == 0) 0 else (uvari^2) * Mstar(uvarj / uvari, uvari^2)
+  #         mstar_term2 <- if (uvarj == 0) 0 else (uvarj^2) * Mstar(uvari / uvarj, uvarj^2)
+  # 
+  #         ints[[q]] <- erf(uvari) * erf(uvarj) + (4 / pi) * uvari * uvarj * wellf((uvari^2) + (uvarj^2)) +
+  #           (2 / sqrt(pi)) * (uvari * e^(-uvari^2) * erf(uvarj) + uvarj * e^(-uvarj^2) * erf(uvari)) -
+  #           2 * (mstar_term1 + mstar_term2)
+  #       }
+  #       out_vector[z] <- ((rechargeR * time) / (4 * storageC)) * (ints[[1]] - ints[[2]] - ints[[3]] + ints[[4]])
+  #     }
+  #     return(out_vector)
+  #   }
+  #   # -----------------------------------------------------------------
+  # 
+  #   # ALWAYS calculate the mound from the REAL basin
+  #   z_real <- solve_hantush(grid$xvar, grid$yvar)
+  # 
+  #   # Conditional Spatial Superposition
+  #   if (isTRUE(use_stream)) {
+  #     # Only read the distance input and calculate image well if checked
+  #     d_stream <- input$streamDistance
+  #     x_image_coords <- grid$xvar - (2 * d_stream)
+  #     z_image <- solve_hantush(x_image_coords, grid$yvar)
+  # 
+  #     # Superposition: Real minus Image
+  #     resultH <- z_real - z_image
+  #   } else {
+  #     # Default behavior: No stream, no image basin math
+  #     resultH <- z_real
+  #     d_stream <- NA
+  #   }
+  # 
+  #   # Force any negative values due to boundary truncation back to 0
+  #   resultH[resultH < 0] <- 0
+  # 
+  #   z_matrix <- matrix(resultH, nrow = length(x_seq), ncol = length(y_seq))
+  # 
+  #   list(
+  #     x_seq = x_seq, y_seq = y_seq, z_matrix = z_matrix, resultH = resultH,
+  #     bgs = bgs, radius = radius, bWidth = bWidth, bLength = bLength,
+  #     use_stream = use_stream, d_stream = d_stream
+  #   )
+  # })
+  
+  ### MOUND DATA CHUNK ACCOUNTING FOR SEPARATE BASIN SUBUNITS AND PORTION OF BASIN THAT ARE TRENCHES ###
+  
   mound_data <- reactive({
     bgs <- input$waterDepth
-    rechargeR <- input$rechargeRate
     storageC <- input$specificYield
     transM <- input$transmissivity
-    bWidth <- input$basinX
-    bLength <- input$basinY
     radius <- input$moundRadius
     increment <- input$radiusIncrement
     time <- input$rechargePeriod
-    e <- exp(1)
-
-    # Checkbox toggle from the UI
-    use_stream <- input$useStream
-
-    # Generate the spatial grid sequences
+    use_stream <- input$useStream 
+    
+    # --- NEW SUBUNIT VARIABLES (Hardcoded from your prompt or linked to UI inputs) ---
+    bLength  <- input$basinY   # Subunit length matches total length
+    bWidth <- input$basinX # Total basin width including all subunits and spacing
+    subUnits <- input$subUnits # Number of subunits in basin
+    subSpace <- input$subSpace # Space between subunits
+    subWidth <- (bWidth-(subSpace*(subUnits-1)))/subUnits   # Calculated subunit widths
+    trench_f <- input$fTrench   # Disposal trench area fraction
+    
+    # Scale the recharge rate by the trench fraction
+    rechargeR <- input$rechargeRate * trench_f 
+    
+    # Define the center points (X offsets) for n subunits
+    first_center <- (-1*bWidth / 2) + (subWidth / 2)
+    center_increment <- subWidth + subSpace
+    subunit_centers <- seq(from = first_center, by = center_increment, length.out = subUnits)
+    # --------------------------------------------------------------------------------
+    
     x_seq <- seq(-1 * radius, radius, by = increment)
     y_seq <- seq(-1 * radius, radius, by = increment)
     grid <- expand.grid(xvar = x_seq, yvar = y_seq)
-
+    
+    # Local Hantush Solver (Modified to use the localized subWidth and bLength variables)
     solve_hantush <- function(x_coords, y_coords) {
       denom <- sqrt((4 * transM * time) / storageC)
-      uvar1 <- (x_coords - (bWidth / 2)) / denom
-      uvar2 <- (x_coords + (bWidth / 2)) / denom
-      uvar3 <- (y_coords - (bLength / 2)) / denom
-      uvar4 <- (y_coords + (bLength / 2)) / denom
-
+      uvar1 <- (x_coords - (subWidth / 2)) / denom  # Updated to subWidth
+      uvar2 <- (x_coords + (subWidth / 2)) / denom  # Updated to subWidth
+      uvar3 <- (y_coords - (bLength / 2)) / denom   # Updated to bLength
+      uvar4 <- (y_coords + (bLength / 2)) / denom   # Updated to bLength
+      
       uvar <- cbind(uvar1, uvar2, uvar3, uvar4)
-      uvar_pairs <- list(uvar[,c(2,4)], uvar[,c(2,3)], uvar[,c(1,4)], uvar[,c(1,3)])
-
+      uvar_pairs <- list(
+        uvar[, c(2,4), drop = FALSE], 
+        uvar[, c(2,3), drop = FALSE], 
+        uvar[, c(1,4), drop = FALSE], 
+        uvar[, c(1,3), drop = FALSE]
+      )
+      
       ints <- list()
       out_vector <- numeric(length(x_coords))
-
-      # Loop Math Helpers
+      e <- exp(1)
       nodes <- c(0.238619186, 0.661209386, 0.932469514, -0.932469514, -0.661209386, -0.238619186)
       weights <- c(0.467913935, 0.360761573, 0.171324492, 0.171324492, 0.360761573, 0.467913935)
-
+      
       Mstar = function(ui, uj){
-        if (is.na(ui) || is.nan(ui) || ui == 0) return(0)
-        Mstar <- ui / pi
+        if (is.na(ui) || is.nan(ui) || ui == 0) return(0) 
+        Mstar_prefactor <- ui / pi 
         resultM <- 0
         for (k in 1:length(nodes)) {
-          r_k <- (nodes[k] + 1) * (uj / (2 * ui))
-          resultM <- resultM + (exp((-uj^2) * (1 + r_k^2)) / (1 + r_k^2)) * weights[k]
+          r_k <- (nodes[k] + 1) * (ui / 2)
+          resultM <- resultM + (exp((-uj) * (1 + r_k^2)) / (1 + r_k^2)) * weights[k]
         }
-        return(Mstar * resultM)
+        return(Mstar_prefactor * resultM)
       }
-
       wellf <- function(u){
-        if (u <= 1) {
-          if (u <= 0) return(0)
+        if (u <= 1) { if (u <= 0) return(0) 
           return(-0.57721566 - log(u) + (0.99999193 * u) + (-0.24991055 * u^2) + (0.05519968 * u^3) + (-0.00976004 * u^4) + (0.00107857 * u^5))
         } else {
           return((1/(u * exp(u))) * (((u^4) + (8.57332874 * u^3) + (18.0590170 * u^2) + (8.63476089 * u) + 0.267773734) / ((u^4) + (9.57332235 * u^3) + (25.6329561 * u^2) + (21.0996531 * u) + 3.95849692)))
         }
       }
-
       erf <- function(uraw){
-        sign <- ifelse(uraw < 0, -1, 1)
-        u <- abs(uraw)
-        bvar <- 1/(1 + (0.3275911 * u))
-        return(sign * (1 - ((0.254829592 * bvar) + (-0.284496736 * bvar^2) + (1.421413741 * bvar^3) + (-1.453152027 * bvar^4) + (1.06140543 * bvar^5)) * e^(-u^2)))
+        sign <- ifelse(uraw < 0, -1, 1); u <- abs(uraw); bvar <- 1/(1 + (0.3275911 * u))
+        return(sign * (1 - ((0.254829592 * bvar) + (-0.284496736 * bvar^2) + (1.421413741 * bvar^3) + (-1.453152027 * bvar^4) + (1.06140543 * bvar^5)) * e^(-u^2))) 
       }
-
-      for (z in 1:length(x_coords)) {
-        for (q in 1:length(uvar_pairs)) {
-          uvari <- uvar_pairs[[q]][z, 1]
-          uvarj <- uvar_pairs[[q]][z, 2]
-
+      
+      for (z in 1:length(x_coords)) { 
+        for (q in 1:length(uvar_pairs)) {  
+          uvari <- uvar_pairs[[q]][z, 1]; uvarj <- uvar_pairs[[q]][z, 2] 
           mstar_term1 <- if (uvari == 0) 0 else (uvari^2) * Mstar(uvarj / uvari, uvari^2)
           mstar_term2 <- if (uvarj == 0) 0 else (uvarj^2) * Mstar(uvari / uvarj, uvarj^2)
-
-          ints[[q]] <- erf(uvari) * erf(uvarj) + (4 / pi) * uvari * uvarj * wellf((uvari^2) + (uvarj^2)) +
-            (2 / sqrt(pi)) * (uvari * e^(-uvari^2) * erf(uvarj) + uvarj * e^(-uvarj^2) * erf(uvari)) -
+          ints[[q]] <- erf(uvari) * erf(uvarj) + 
+            (4 / pi) * uvari * uvarj * wellf((uvari^2) + (uvarj^2)) + 
+            (2 / sqrt(pi)) * (uvari * exp(-uvari^2) * erf(uvarj) + uvarj * exp(-uvarj^2) * erf(uvari)) - 
             2 * (mstar_term1 + mstar_term2)
         }
         out_vector[z] <- ((rechargeR * time) / (4 * storageC)) * (ints[[1]] - ints[[2]] - ints[[3]] + ints[[4]])
       }
       return(out_vector)
     }
+    
     # -----------------------------------------------------------------
-
-    # ALWAYS calculate the mound from the REAL basin
-    z_real <- solve_hantush(grid$xvar, grid$yvar)
-
-    # Conditional Spatial Superposition
+    # EXECUTE SPATIAL SUPERPOSITION FOR SUBUNITS
+    # -----------------------------------------------------------------
+    # Initialize blank vectors for tracking cumulative totals
+    z_real  <- numeric(nrow(grid))
+    z_image <- numeric(nrow(grid))
+    
+    # Loop through each of the 3 subunits
+    for (center in subunit_centers) {
+      # Shift coordinates by the subunit's center and add to total real mound
+      z_real <- z_real + solve_hantush(grid$xvar - center, grid$yvar)
+      
+      # If stream is active, shift image coordinates based on each subunit center
+      if (isTRUE(use_stream)) {
+        d_stream <- input$streamDistance
+        x_image_coords <- grid$xvar - (2 * d_stream - center)
+        z_image <- z_image + solve_hantush(x_image_coords, grid$yvar)
+      }
+    }
+    
+    # Final Superposition Combining Subunits and Streams
     if (isTRUE(use_stream)) {
-      # Only read the distance input and calculate image well if checked
-      d_stream <- input$streamDistance
-      x_image_coords <- grid$xvar - (2 * d_stream)
-      z_image <- solve_hantush(x_image_coords, grid$yvar)
-
-      # Superposition: Real minus Image
       resultH <- z_real - z_image
     } else {
-      # Default behavior: No stream, no image basin math
       resultH <- z_real
       d_stream <- NA
     }
-
-    # Force any negative values due to boundary truncation back to 0
+    
     resultH[resultH < 0] <- 0
-
     z_matrix <- matrix(resultH, nrow = length(x_seq), ncol = length(y_seq))
-
+    
+    # Return definitions (Using total combined dimensions for bounding box layouts)
     list(
       x_seq = x_seq, y_seq = y_seq, z_matrix = z_matrix, resultH = resultH,
-      bgs = bgs, radius = radius, bWidth = bWidth, bLength = bLength,
+      bgs = bgs, radius = radius, bWidth = bWidth, bLength = bLength, 
       use_stream = use_stream, d_stream = d_stream
     )
   })
